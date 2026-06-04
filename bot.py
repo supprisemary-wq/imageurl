@@ -15,7 +15,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process incoming images, upload anonymously, and return the link."""
+    """Process incoming images, upload anonymously to Catbox, and return the link."""
     status_message = await update.message.reply_text("⚡ Processing image link... please wait.")
 
     try:
@@ -30,18 +30,19 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
             image_bytes = tg_response.content
 
-            # Upload to Telegraph completely keyless
-            telegraph_url = "https://telegra.ph/upload"
-            files = {"file": ("image.jpg", image_bytes, "image/jpeg")}
+            # Upload to Catbox API (completely keyless)
+            catbox_url = "https://catbox.moe/user/api.php"
+            payload = {
+                "reqtype": "fileupload",
+                "userhash": ""  # Blank means anonymous / no API key needed!
+            }
+            files = {"fileToUpload": ("image.jpg", image_bytes, "image/jpeg")}
             
-            response = await client.post(telegraph_url, files=files, timeout=30.0)
+            response = await client.post(catbox_url, data=payload, files=files, timeout=30.0)
             
         if response.status_code == 200:
-            data = response.json()
-            # Telegraph returns a list containing the source path
-            if isinstance(data, list) and len(data) > 0 and "src" in data[0]:
-                direct_url = f"https://telegra.ph{data[0]['src']}"
-                
+            direct_url = response.text.strip()
+            if direct_url.startswith("https://"):
                 success_report = (
                     "✅ **IMAGE LINK GENERATED!**\n"
                     "━━━━━━━━━━━━━━━━━━━━\n"
@@ -52,7 +53,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await status_message.edit_text(success_report, parse_mode="Markdown")
                 return
                 
-        await status_message.edit_text("❌ Upload failed. Please try a different image.")
+        await status_message.edit_text("❌ Upload failed. The host server rejected the image.")
 
     except Exception as e:
         print(f"Error: {str(e)}")
@@ -67,7 +68,7 @@ def main():
     application.add_handler(MessageHandler(filters.PHOTO, handle_image))
 
     # Run polling loop
-    print("✅ Image-to-URL Bot is running keyless...")
+    print("✅ Image-to-URL Bot is running keyless on Catbox...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
